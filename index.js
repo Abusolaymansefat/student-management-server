@@ -1,49 +1,68 @@
 import express from 'express';
-import mysql from 'mysql2/promise';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import db from './server/db.js';
+
 dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 app.use(express.json());
 
-async function startServer() {
+const PORT = process.env.PORT || 3000;
+
+// Get all students
+app.get("/student_management", async (req, res) => {
   try {
-    const db = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_DATABASE, 
-      port: process.env.DB_PORT || 3306
-    });
-    console.log("✅ Connected to database");
-
-    // we nees to create a db
-    // await db.execute(`create database if not exists ${process.env.DB_DATABASE}`);
-    // console.log(await db.execute("show databases"));
-
-    //  Courses table
-    await db.execute(`
-  CREATE TABLE IF NOT EXISTS courses (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    course_code VARCHAR(20) UNIQUE NOT NULL,
-    course_name VARCHAR(100) NOT NULL,
-    credits INT NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-
-    app.get("/", (req, res) => res.send("Server is running"));
-
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    const [rows] = await db.query("SELECT * FROM student_management"); // table name
+    res.json(rows);
   } catch (err) {
-    console.error("❌ Database connection failed:", err);
+    console.log(err);
+    res.status(500).json({ message: "Database error", error: err });
   }
-}
+});
 
-startServer();
+
+// Add new student
+app.post("/student_management", async (req, res) => {
+  const { name, email, is_active } = req.body;
+  try {
+    const [result] = await db.query(
+      "INSERT INTO student_management (name, email, is_active) VALUES (?, ?, ?)",
+      [name, email, is_active]
+    );
+    res.json({ message: "Student added", id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ message: "Database error", error: err });
+  }
+});
+
+// Delete student
+app.delete("/student_management/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.query("DELETE FROM student_management WHERE id = ?", [id]);
+    res.json({ message: "Student deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Database error", error: err });
+  }
+});
+
+// Update student
+app.put("/student_management/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, email, is_active } = req.body;
+  try {
+    await db.query(
+      "UPDATE student_management SET name = ?, email = ?, is_active = ? WHERE id = ?",
+      [name, email, is_active, id]
+    );
+    res.json({ message: "Student updated successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Database error", error: err });
+  }
+});
+
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
